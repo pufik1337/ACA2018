@@ -251,8 +251,6 @@ int Table::read_file(const string &filename) {
         //if (rows[nodes].size() == 0)
             //zero_outgoing_idxvec.push_back(nodes);
     }
-    cerr << "rows: " << row_rep.size() << "\n";
-    cerr << "columns: " << col_rep.size();
 
     return 0;
 }
@@ -347,7 +345,7 @@ void Table::pagerank() {
     double diff = 1;
     size_t i;
     double sum_pr; // sum of current pagerank vector elements
-    double dangling_pr; // sum of current pagerank vector elements for dangling
+    double dangling_pr = 0; // sum of current pagerank vector elements for dangling
     			// nodes
     unsigned long num_iterations = 0;
     vector<double> old_pr;
@@ -408,9 +406,11 @@ void Table::pagerank() {
     cudaMemcpy(d_num_outgoing, &num_outgoing[0], int_size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_row_rep, &row_rep[0], row_size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_col_rep, &col_rep[0], col_size, cudaMemcpyHostToDevice);
+    //cudaMemcpy(d_old_pr, &pr[0], double_size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_pr, &pr[0], double_size, cudaMemcpyHostToDevice);
 
     double one_Av;
-    double one_Iv;
+    double one_Iv = (1 - alpha) / num_rows;
 
     while (diff > convergence && num_iterations < max_iterations) {
         
@@ -421,19 +421,10 @@ void Table::pagerank() {
         );
 
         dangling_pr = thrust::reduce(thrust::device, d_dangling, d_dangling + zero_outgoing_idxvec.size());
+        sum_pr = thrust::reduce(thrust::device, d_pr, d_pr + num_rows); 
+                             
+        one_Av = alpha * dangling_pr / num_rows;
 
-        if (num_iterations == 0) {
-            cudaMemcpy(d_old_pr, &pr[0], double_size, cudaMemcpyHostToDevice);
-            sum_pr = 1;
-            one_Av = 0;
-            one_Iv = (1 - alpha) / num_rows;
-        } else {
-            /* Normalize so that we start with sum equal to one */
-            sum_pr = thrust::reduce(thrust::device, d_pr, d_pr + num_rows);
-            one_Iv = (1 - alpha) / num_rows;
-            one_Av = alpha * dangling_pr / num_rows;
-        }
-        
         pageRank<<<38000, 500>>>(
             d_row_rep,
             d_col_rep, 
