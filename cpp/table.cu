@@ -425,7 +425,7 @@ void Table::pagerank() {
                              
         one_Av = alpha * dangling_pr / num_rows;
 
-        pageRank<<<38000, 500>>>(
+        pageRank<<<37110, 512>>>(
             d_row_rep,
             d_col_rep, 
             d_num_outgoing,
