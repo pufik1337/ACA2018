@@ -324,9 +324,7 @@ __global__ void pageRank(
         double h = 0.0;
         for(unsigned i = row_start; i < row_end; i++){
             unsigned ci = csrColPtrA[i];
-            double h_v = (num_outgoing[ci])
-            ? 1.0 / num_outgoing[ci]
-            : 0.0;
+            double h_v = num_outgoing[ci];
             h += h_v * old_pr[ci];
             //printf ("Thread number %d; Column index (pointing at me): %d; h = %f \n", threadIdx.x, ci, h);       
         }
@@ -375,10 +373,15 @@ void Table::pagerank() {
         if (num_outgoing[k] == 0) {
             zero_outgoing_idxvec.push_back(k);
         }
+        else{
+            num_outgoing[k] = 1/num_outgoing[k];
+        }
     }
 
     thrust::device_vector<unsigned> d_zero_outgoing_index;
     d_zero_outgoing_index = zero_outgoing_idxvec;
+
+    size_t n_thread_blocks = ((uint) pr.size() / 512u) + 1u;
 
     // allocate num_outgoing, pr, old_pr, csrRowPtrA, csrColPtrA
     size_t int_size = num_rows * sizeof(size_t);
@@ -425,7 +428,7 @@ void Table::pagerank() {
                              
         one_Av = alpha * dangling_pr / num_rows;
 
-        pageRank<<<37110, 512>>>(
+        pageRank<<<n_thread_blocks, 512>>>(
             d_row_rep,
             d_col_rep, 
             d_num_outgoing,
